@@ -1,0 +1,20 @@
+# ignore folder
+Normal/
+
+# typical C/C++ мусор
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.exe
+*.out
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+Makefile
+compile_commands.json
+
+# VS Code (по желанию)
+.vscode/
