@@ -1,10 +1,3 @@
-// jw_text_search_bench_omp.cpp
-// C++17 + OpenMP: benchmark "SEARCH and EXIT" for Jaro–Winkler over word list
-// - baseline: sequential search with early break
-// - parallel: OpenMP parallel for + shared best_idx (skip i >= best_idx)
-// - measures avg_ms, speedup, efficiency for threads tmin..tmax
-// - optional: write .dat for gnuplot via --out file.dat
-
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -26,8 +19,6 @@ struct JWOptions {
     double p = 0.1;
     size_t max_prefix = 4;
 };
-
-// ------------------------------ Jaro / Jaro-Winkler ------------------------------
 
 static double jaro_similarity(std::string_view s1, std::string_view s2, const JWOptions& opt) {
     const size_t n1 = s1.size();
@@ -95,8 +86,6 @@ static double jaro_winkler_similarity(std::string_view s1, std::string_view s2, 
     return J + double(prefix) * opt.p * (1.0 - J);
 }
 
-// ------------------------------ Words loader ------------------------------
-
 static std::vector<std::string> load_words(const std::string& filename) {
     std::vector<std::string> words;
     std::ifstream fin(filename);
@@ -117,9 +106,6 @@ static std::vector<std::string> load_words(const std::string& filename) {
     }
     return words;
 }
-
-// ------------------------------ Search timing ------------------------------
-// РЕЖИМ: "нашли -> break" (или "не нашли -> прошли весь массив")
 
 static double run_seq_search(const std::vector<std::string>& words, size_t n,
                              std::string_view query, double threshold,
@@ -146,10 +132,6 @@ static double run_seq_search(const std::vector<std::string>& words, size_t n,
 }
 
 // Параллельный поиск "как можно ближе к break":
-// - shared best_idx (минимальный индекс найденного совпадения)
-// - итерации с i >= best_idx пропускаем (после того, как best_idx уменьшился)
-// Замечание: если потоки уже начали считать "далёкие" итерации до обновления best_idx,
-// они могут потратить на это время — это нормальная особенность параллельного поиска.
 static double run_omp_search(const std::vector<std::string>& words, size_t n,
                              std::string_view query, double threshold,
                              int runs, const JWOptions& opt,
@@ -169,15 +151,12 @@ static double run_omp_search(const std::vector<std::string>& words, size_t n,
         #pragma omp parallel for schedule(runtime)
         for (long long i = 0; i < (long long)n; ++i) {
             long long cur_best = best_idx.load(std::memory_order_relaxed);
-            if (i >= cur_best) continue; // уже нашли более ранний индекс
-
+            if (i >= cur_best) continue; 
             double sim = jaro_winkler_similarity(query, words[(size_t)i], opt);
             if (sim >= threshold) {
-                // уменьшаем best_idx до i (если i меньше текущего best)
                 long long prev = cur_best;
                 while (i < prev && !best_idx.compare_exchange_weak(
                            prev, i, std::memory_order_relaxed, std::memory_order_relaxed)) {
-                    // prev обновится на актуальное значение best_idx
                 }
             }
         }
@@ -194,7 +173,6 @@ static double run_omp_search(const std::vector<std::string>& words, size_t n,
     return total / double(runs);
 }
 
-// Для печати similarity/слова (вне замера времени) — считаем 1 раз по найденному индексу
 static void print_found(const std::vector<std::string>& words, size_t n,
                         std::string_view query, double threshold,
                         const JWOptions& opt, long long found_idx) {
@@ -208,7 +186,6 @@ static void print_found(const std::vector<std::string>& words, size_t n,
               << " | index=" << found_idx << "\n";
 }
 
-// ------------------------------ CLI ------------------------------
 
 struct Args {
     std::string file;
@@ -221,14 +198,14 @@ struct Args {
     int tmin = 2;
     int tmax = 10;
 
-    std::string schedule = "guided"; // guided|dynamic|static
+    std::string schedule = "guided"; 
     int chunk = 64;
 
     bool case_insensitive = false;
     double p = 0.1;
     size_t max_prefix = 4;
 
-    std::string out_dat; // optional
+    std::string out_dat; 
 };
 
 static void usage(const char* prog) {
@@ -334,7 +311,6 @@ int main(int argc, char** argv) {
               << " | p=" << opt.p
               << " | prefix=" << opt.max_prefix << "\n\n";
 
-    // Baseline (sequential search & exit)
     long long seq_found = -1;
     double T1 = run_seq_search(words, n, args.query, args.threshold, args.runs, opt, &seq_found);
 
@@ -382,3 +358,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
